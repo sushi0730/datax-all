@@ -19,16 +19,12 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.UUID;
 
 /**
- * Created by haiwei.luo on 14-9-17.
+ * Created by sushi
  */
-public class TxtFileWriter extends Writer {
+public class SushiTxtFileWriter extends Writer {
     public static class Job extends Writer.Job {
         private static final Logger LOG = LoggerFactory.getLogger(Job.class);
 
@@ -58,10 +54,18 @@ public class TxtFileWriter extends Writer {
             this.writerSliceConfig
                     .getNecessaryValue(
                             com.alibaba.datax.plugin.unstructuredstorage.writer.Key.FILE_NAME,
-                            TxtFileWriterErrorCode.REQUIRED_VALUE);
-
+                            SushiTxtFileWriterErrorCode.REQUIRED_VALUE);
+            // 增加对文件后缀的判断
+            if(!writerSliceConfig.getString(com.alibaba.datax.plugin.unstructuredstorage.writer.Key.FILE_NAME).contains(".")) {
+                throw DataXException
+                        .asDataXException(
+                                SushiTxtFileWriterErrorCode.ILLEGAL_VALUE,
+                                String.format(
+                                        "您配置的文件: [%s] 不是一个合法的文件名, 请您注意文件重名, 不合法目录名等情况.（文件名必须带有文件类型，如.csv",
+                                        writerSliceConfig.getString(com.alibaba.datax.plugin.unstructuredstorage.writer.Key.FILE_NAME)));
+            }
             String path = this.writerSliceConfig.getNecessaryValue(Key.PATH,
-                    TxtFileWriterErrorCode.REQUIRED_VALUE);
+                    SushiTxtFileWriterErrorCode.REQUIRED_VALUE);
 
             try {
                 // warn: 这里用户需要配一个目录
@@ -69,7 +73,7 @@ public class TxtFileWriter extends Writer {
                 if (dir.isFile()) {
                     throw DataXException
                             .asDataXException(
-                                    TxtFileWriterErrorCode.ILLEGAL_VALUE,
+                                    SushiTxtFileWriterErrorCode.ILLEGAL_VALUE,
                                     String.format(
                                             "您配置的path: [%s] 不是一个合法的目录, 请您注意文件重名, 不合法目录名等情况.",
                                             path));
@@ -79,14 +83,14 @@ public class TxtFileWriter extends Writer {
                     if (!createdOk) {
                         throw DataXException
                                 .asDataXException(
-                                        TxtFileWriterErrorCode.CONFIG_INVALID_EXCEPTION,
+                                        SushiTxtFileWriterErrorCode.CONFIG_INVALID_EXCEPTION,
                                         String.format("您指定的文件路径 : [%s] 创建失败.",
                                                 path));
                     }
                 }
             } catch (SecurityException se) {
                 throw DataXException.asDataXException(
-                        TxtFileWriterErrorCode.SECURITY_NOT_ENOUGH,
+                        SushiTxtFileWriterErrorCode.SECURITY_NOT_ENOUGH,
                         String.format("您没有权限创建文件路径 : [%s] ", path), se);
             }
         }
@@ -96,19 +100,21 @@ public class TxtFileWriter extends Writer {
             String path = this.writerSliceConfig.getString(Key.PATH);
             String fileName = this.writerSliceConfig
                     .getString(com.alibaba.datax.plugin.unstructuredstorage.writer.Key.FILE_NAME);
+            String fileNamePrefix = fileName.substring(0, fileName.indexOf("."));
+            String fileNameSuffix = fileName.substring(fileName.indexOf("."));
             String writeMode = this.writerSliceConfig
                     .getString(com.alibaba.datax.plugin.unstructuredstorage.writer.Key.WRITE_MODE);
             // truncate option handler
             if ("truncate".equals(writeMode)) {
                 LOG.info(String.format(
                         "由于您配置了writeMode truncate, 开始清理 [%s] 下面以 [%s] 开头的内容",
-                        path, fileName));
+                        path, fileNamePrefix));
                 File dir = new File(path);
                 // warn:需要判断文件是否存在，不存在时，不能删除
                 try {
                     if (dir.exists()) {
                         // warn:不要使用FileUtils.deleteQuietly(dir);
-                        FilenameFilter filter = new PrefixFileFilter(fileName);
+                        FilenameFilter filter = new PrefixFileFilter(fileNamePrefix);
                         File[] filesWithFileNamePrefix = dir.listFiles(filter);
                         for (File eachFile : filesWithFileNamePrefix) {
                             LOG.info(String.format("delete file [%s].",
@@ -120,26 +126,26 @@ public class TxtFileWriter extends Writer {
                 } catch (NullPointerException npe) {
                     throw DataXException
                             .asDataXException(
-                                    TxtFileWriterErrorCode.Write_FILE_ERROR,
+                                    SushiTxtFileWriterErrorCode.Write_FILE_ERROR,
                                     String.format("您配置的目录清空时出现空指针异常 : [%s]",
                                             path), npe);
                 } catch (IllegalArgumentException iae) {
                     throw DataXException.asDataXException(
-                            TxtFileWriterErrorCode.SECURITY_NOT_ENOUGH,
+                            SushiTxtFileWriterErrorCode.SECURITY_NOT_ENOUGH,
                             String.format("您配置的目录参数异常 : [%s]", path));
                 } catch (SecurityException se) {
                     throw DataXException.asDataXException(
-                            TxtFileWriterErrorCode.SECURITY_NOT_ENOUGH,
+                            SushiTxtFileWriterErrorCode.SECURITY_NOT_ENOUGH,
                             String.format("您没有权限查看目录 : [%s]", path));
                 } catch (IOException e) {
                     throw DataXException.asDataXException(
-                            TxtFileWriterErrorCode.Write_FILE_ERROR,
+                            SushiTxtFileWriterErrorCode.Write_FILE_ERROR,
                             String.format("无法清空目录 : [%s]", path), e);
                 }
             } else if ("append".equals(writeMode)) {
                 LOG.info(String
                         .format("由于您配置了writeMode append, 写入前不做清理工作, [%s] 目录下写入相应文件名前缀  [%s] 的文件",
-                                path, fileName));
+                                path, fileNamePrefix));
             } else if ("nonConflict".equals(writeMode)) {
                 LOG.info(String.format(
                         "由于您配置了writeMode nonConflict, 开始检查 [%s] 下面的内容", path));
@@ -150,13 +156,13 @@ public class TxtFileWriter extends Writer {
                         if (dir.isFile()) {
                             throw DataXException
                                     .asDataXException(
-                                            TxtFileWriterErrorCode.ILLEGAL_VALUE,
+                                            SushiTxtFileWriterErrorCode.ILLEGAL_VALUE,
                                             String.format(
                                                     "您配置的path: [%s] 不是一个合法的目录, 请您注意文件重名, 不合法目录名等情况.",
                                                     path));
                         }
                         // fileName is not null
-                        FilenameFilter filter = new PrefixFileFilter(fileName);
+                        FilenameFilter filter = new PrefixFileFilter(fileNamePrefix);
                         File[] filesWithFileNamePrefix = dir.listFiles(filter);
                         if (filesWithFileNamePrefix.length > 0) {
                             List<String> allFiles = new ArrayList<String>();
@@ -167,7 +173,7 @@ public class TxtFileWriter extends Writer {
                                     StringUtils.join(allFiles, ",")));
                             throw DataXException
                                     .asDataXException(
-                                            TxtFileWriterErrorCode.ILLEGAL_VALUE,
+                                            SushiTxtFileWriterErrorCode.ILLEGAL_VALUE,
                                             String.format(
                                                     "您配置的path: [%s] 目录不为空, 下面存在其他文件或文件夹.",
                                                     path));
@@ -177,7 +183,7 @@ public class TxtFileWriter extends Writer {
                         if (!createdOk) {
                             throw DataXException
                                     .asDataXException(
-                                            TxtFileWriterErrorCode.CONFIG_INVALID_EXCEPTION,
+                                            SushiTxtFileWriterErrorCode.CONFIG_INVALID_EXCEPTION,
                                             String.format(
                                                     "您指定的文件路径 : [%s] 创建失败.",
                                                     path));
@@ -185,13 +191,13 @@ public class TxtFileWriter extends Writer {
                     }
                 } catch (SecurityException se) {
                     throw DataXException.asDataXException(
-                            TxtFileWriterErrorCode.SECURITY_NOT_ENOUGH,
+                            SushiTxtFileWriterErrorCode.SECURITY_NOT_ENOUGH,
                             String.format("您没有权限查看目录 : [%s]", path));
                 }
             } else {
                 throw DataXException
                         .asDataXException(
-                                TxtFileWriterErrorCode.ILLEGAL_VALUE,
+                                SushiTxtFileWriterErrorCode.ILLEGAL_VALUE,
                                 String.format(
                                         "仅支持 truncate, append, nonConflict 三种模式, 不支持您配置的 writeMode 模式 : [%s]",
                                         writeMode));
@@ -215,42 +221,13 @@ public class TxtFileWriter extends Writer {
             String filePrefix = this.writerSliceConfig
                     .getString(com.alibaba.datax.plugin.unstructuredstorage.writer.Key.FILE_NAME);
 
-            Set<String> allFiles = new HashSet<String>();
-            String path = null;
-            try {
-                path = this.writerSliceConfig.getString(Key.PATH);
-                File dir = new File(path);
-                allFiles.addAll(Arrays.asList(dir.list()));
-            } catch (SecurityException se) {
-                throw DataXException.asDataXException(
-                        TxtFileWriterErrorCode.SECURITY_NOT_ENOUGH,
-                        String.format("您没有权限查看目录 : [%s]", path));
-            }
-
             String fileSuffix;
             for (int i = 0; i < mandatoryNumber; i++) {
                 // handle same file name
 
                 Configuration splitedTaskConfig = this.writerSliceConfig
                         .clone();
-
-                String fullFileName = null;
-                fileSuffix = UUID.randomUUID().toString().replace('-', '_');
-                fullFileName = String.format("%s__%s", filePrefix, fileSuffix);
-                while (allFiles.contains(fullFileName)) {
-                    fileSuffix = UUID.randomUUID().toString().replace('-', '_');
-                    fullFileName = String.format("%s__%s", filePrefix,
-                            fileSuffix);
-                }
-                allFiles.add(fullFileName);
-
-                splitedTaskConfig
-                        .set(com.alibaba.datax.plugin.unstructuredstorage.writer.Key.FILE_NAME,
-                                fullFileName);
-
-                LOG.info(String.format("splited write file name:[%s]",
-                        fullFileName));
-
+                splitedTaskConfig.set(Key.SPLIT_NUM, i);
                 writerSplitConfigs.add(splitedTaskConfig);
             }
             LOG.info("end do split.");
@@ -283,30 +260,20 @@ public class TxtFileWriter extends Writer {
 
         @Override
         public void startWrite(RecordReceiver lineReceiver) {
-            LOG.info("begin do write...");
-            String fileFullPath = this.buildFilePath();
-            LOG.info(String.format("write to file : [%s]", fileFullPath));
+            LOG.info("begin do write " + this.fileName + " ...");
 
-            OutputStream outputStream = null;
             try {
-                File newFile = new File(fileFullPath);
-                newFile.createNewFile();
-                outputStream = new FileOutputStream(newFile);
-                UnstructuredStorageWriterUtil.writeToStream(lineReceiver,
-                        outputStream, this.writerSliceConfig, this.fileName,
+                SushiStorageWriterUtil.writeToFile(lineReceiver,
+                        this.writerSliceConfig,
                         this.getTaskPluginCollector());
             } catch (SecurityException se) {
                 throw DataXException.asDataXException(
-                        TxtFileWriterErrorCode.SECURITY_NOT_ENOUGH,
+                        SushiTxtFileWriterErrorCode.SECURITY_NOT_ENOUGH,
                         String.format("您没有权限创建文件  : [%s]", this.fileName));
-            } catch (IOException ioe) {
-                throw DataXException.asDataXException(
-                        TxtFileWriterErrorCode.Write_FILE_IO_ERROR,
-                        String.format("无法创建待写文件 : [%s]", this.fileName), ioe);
-            } finally {
-                IOUtils.closeQuietly(outputStream);
             }
-            LOG.info("end do write");
+
+
+            LOG.info("end do write" + this.fileName );
         }
 
         private String buildFilePath() {

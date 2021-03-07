@@ -1,4 +1,4 @@
-package com.alibaba.datax.plugin.writer.txtfilewriter;
+package com.alibaba.datax.plugin.writer.sushitxtfilewriter;
 
 import com.alibaba.datax.common.spi.ErrorCode;
 

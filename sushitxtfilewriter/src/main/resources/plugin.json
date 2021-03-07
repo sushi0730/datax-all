@@ -1,0 +1,6 @@
+{
+    "name": "sushitxtfilewriter",
+    "class": "com.alibaba.datax.plugin.writer.sushitxtfilewriter.SushiTxtFileWriter",
+    "description": "useScene: test. mechanism: use datax framework to transport data to txt file. warn: The more you know about the data, the less problems you encounter.",
+    "developer": "sushi"
+}

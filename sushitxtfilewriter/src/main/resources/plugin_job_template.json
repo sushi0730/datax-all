@@ -1,0 +1,11 @@
+{
+    "name": "sushitxtfilewriter",
+    "parameter": {
+        "path": "",
+        "fileName": "",
+        "writeMode": "",
+        "fieldDelimiter":"",
+        "dateFormat": "",
+        "maxRowNum": ""
+    }
+}
